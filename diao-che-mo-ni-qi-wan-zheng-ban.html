@@ -1,0 +1,1230 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="light dark" />
+<link rel="icon" href="data:," />
+<title>调车模拟器完整版</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet" />
+<style>
+:root{
+--bg:#eceff1; --panel:#ffffff; --panel2:#f4f6f8; --ink:#17222c; --ink2:#54626e;
+--line:#d3dbe0; --accent:#e8590c; --accent-ink:#ffffff;
+--ok:#1e9e62; --warn:#e8a00c; --bad:#d6336c; --bad2:#e03131;
+--track:#2b3a46; --wire:#e8590c; --cone:#f08c00;
+--chart-err:#1971c2; --chart-l:#e8590c; --chart-r:#1e9e62; --chart-v:#1971c2; --chart-batt:#e8a00c;
+--shadow:0 1px 3px rgba(16,32,44,.10),0 4px 14px rgba(16,32,44,.06);
+}
+@media (prefers-color-scheme: dark){
+:root{
+--bg:#0c1218; --panel:#141e28; --panel2:#1a2634; --ink:#e8eef4; --ink2:#93a5b5;
+--line:#27384a; --accent:#ff922b; --accent-ink:#1a1206;
+--ok:#3ddc84; --warn:#ffd43b; --bad:#ff6b9d; --bad2:#ff8787;
+--track:#3d5266; --wire:#ff922b; --cone:#ffa94d;
+--chart-err:#74c0fc; --chart-l:#ffa94d; --chart-r:#3ddc84; --chart-v:#74c0fc; --chart-batt:#ffd43b;
+--shadow:0 1px 3px rgba(0,0,0,.4),0 4px 14px rgba(0,0,0,.3);
+}
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:"Noto Sans SC",system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;font-size:15px;line-height:1.55}
+.mono{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
+button,[role="button"],select,input:not([type="checkbox"],[type="radio"]){min-height:2.25rem}
+button{font:inherit;cursor:pointer}
+.wrap{max-width:1440px;margin:0 auto;padding:14px 14px 40px}
+
+/* ---------- top status strip ---------- */
+.topbar{display:flex;flex-wrap:wrap;gap:10px;align-items:stretch;margin-bottom:12px}
+.brand{display:flex;flex-direction:column;justify-content:center;padding:4px 6px 4px 2px;min-width:210px}
+.brand h1{font-size:21px;font-weight:900;margin:0;letter-spacing:.02em}
+.brand p{margin:2px 0 0;color:var(--ink2);font-size:12.5px}
+.stat-cards{display:flex;flex-wrap:wrap;gap:10px;flex:1}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:8px 14px;min-width:118px;flex:1}
+.stat.k{font-size:11.5px;color:var(--ink2);letter-spacing:.08em}
+.stat.v{font-size:23px;font-weight:600;line-height:1.15}
+.stat.v small{font-size:12px;color:var(--ink2);font-weight:400}
+.stat.alert.v{color:var(--bad2)}
+
+/* ---------- layout ---------- */
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 348px;gap:12px;align-items:start}
+@media (max-width:1020px){.layout{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:14px}
+.card h2{font-size:14px;font-weight:700;margin:0 0 10px;letter-spacing:.06em;display:flex;align-items:center;gap:8px}
+.card h2.tag{margin-left:auto;font-size:11px;color:var(--ink2);font-weight:400;letter-spacing:0}
+.stack{display:flex;flex-direction:column;gap:12px}
+
+/* ---------- stage ---------- */
+.stage-head{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.seg button{border:0;background:var(--panel2);color:var(--ink2);padding:8px 14px;font-weight:500}
+.seg button.on{background:var(--accent);color:var(--accent-ink);font-weight:700}
+.btn{border:1px solid var(--line);background:var(--panel2);color:var(--ink);border-radius:9px;padding:8px 16px;font-weight:600}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.danger{background:var(--bad2);border-color:var(--bad2);color:#fff}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn:active{transform:translateY(1px)}
+.stage-head.spacer{flex:1}
+.sim-speed{display:inline-flex;align-items:center;gap:6px;color:var(--ink2);font-size:12.5px}
+canvas#stage{width:100%;height:auto;display:block;border-radius:8px;background:var(--panel2)}
+.banner{margin-top:10px;border-radius:9px;padding:9px 12px;font-size:13.5px;display:none}
+.banner.show{display:block}
+.banner.warn{background:color-mix(in srgb,var(--warn) 16%,transparent);border:1px solid var(--warn)}
+.banner.bad{background:color-mix(in srgb,var(--bad2) 13%,transparent);border:1px solid var(--bad2)}
+.banner.ok{background:color-mix(in srgb,var(--ok) 14%,transparent);border:1px solid var(--ok)}
+
+/* ---------- sensors ---------- */
+.sensor-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.sensor{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px}
+.sensor.name{font-size:12px;color:var(--ink2);display:flex;justify-content:space-between}
+.sensor.val{font-size:21px;font-weight:600}
+.sensor.val small{font-size:11px;color:var(--ink2)}
+.bar{height:9px;border-radius:5px;background:var(--line);margin-top:7px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent);border-radius:5px;transition:width.05s linear}
+.sensor.adc{font-size:11.5px;color:var(--ink2);margin-top:5px}
+.err-read{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap}
+.err-read.cell{flex:1;min-width:130px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px 12px}
+.err-read.k{font-size:11.5px;color:var(--ink2)}
+.err-read.v{font-size:19px;font-weight:600}
+
+/* ---------- battery ---------- */
+.batt-row{display:flex;gap:14px;align-items:center}
+.batt-shell{flex:1;height:20px;border:2px solid var(--ink2);border-radius:5px;position:relative;padding:2px}
+.batt-fill{height:100%;border-radius:2px;background:var(--ok);transition:width.2s}
+.batt-fill.low{background:var(--bad2)}
+.batt-nums{display:flex;gap:16px;flex-wrap:wrap}
+.batt-nums.k{font-size:11.5px;color:var(--ink2)}
+.batt-nums.v{font-size:17px;font-weight:600}
+
+/* ---------- sliders ---------- */
+.ctl{margin-bottom:13px}
+.ctl label{display:flex;justify-content:space-between;align-items:baseline;font-size:13.5px;font-weight:500;margin-bottom:2px}
+.ctl label output{font-family:"IBM Plex Mono",monospace;font-size:13.5px;font-weight:600;color:var(--accent)}
+.ctl.hint{font-size:11.5px;color:var(--ink2);margin-top:1px}
+input[type="range"]{width:100%;accent-color:var(--accent);height:28px;margin:0}
+.ctl-row{display:flex;gap:8px;flex-wrap:wrap}
+
+/* ---------- telemetry ---------- */
+.tele-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+@media (max-width:720px){.tele-grid{grid-template-columns:1fr}}
+.tele canvas{width:100%;height:92px;display:block}
+.tele.cap{font-size:12px;color:var(--ink2);display:flex;justify-content:space-between;margin-bottom:4px}
+.tele.cap b{color:var(--ink);font-weight:600}
+
+/* ---------- results / tables ---------- */
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{padding:7px 8px;text-align:left;border-bottom:1px solid var(--line)}
+th{color:var(--ink2);font-weight:500;font-size:12px;letter-spacing:.05em}
+td.num,th.num{text-align:right;font-family:"IBM Plex Mono",monospace}
+tr.hit td{background:color-mix(in srgb,var(--accent) 13%,transparent);font-weight:700}
+.score-big{display:flex;gap:12px;flex-wrap:wrap}
+.score-big.cell{flex:1;min-width:120px;text-align:center;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 6px}
+.score-big.v{font-size:27px;font-weight:700}
+.score-big.k{font-size:12px;color:var(--ink2)}
+
+/* ---------- presets ---------- */
+.preset-list{display:flex;flex-direction:column;gap:7px}
+.preset{display:flex;align-items:center;gap:8px;background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:6px 8px 6px 12px}
+.preset.nm{flex:1;font-size:13.5px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.preset button{padding:4px 12px;border-radius:7px;border:1px solid var(--line);background:var(--panel);font-size:12.5px}
+.preset button.del{color:var(--bad2)}
+.save-row{display:flex;gap:8px}
+.save-row input{flex:1;border:1px solid var(--line);border-radius:9px;background:var(--panel2);color:var(--ink);padding:8px 10px;font:inherit;min-width:0}
+
+details.codebox{margin-top:4px}
+details.codebox summary{cursor:pointer;font-weight:600;font-size:13.5px;padding:6px 0}
+pre.code{background:#0d1520;color:#c9e2f5;border-radius:10px;padding:13px;font-family:"IBM Plex Mono",monospace;font-size:12px;line-height:1.6;white-space:pre-wrap;word-break:break-word;margin:8px 0}
+@media (prefers-color-scheme: light){pre.code{background:#14202e}}
+.foot{color:var(--ink2);font-size:12.5px;margin-top:14px}
+kbd{font-family:"IBM Plex Mono",monospace;background:var(--panel2);border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:0 5px;font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<!-- status strip -->
+<div class="topbar">
+<div class="brand">
+<h1>风磁电车 · 调车台</h1>
+<p>三路电磁杆实车模型 · STM32F103C8T6 + L298N</p>
+</div>
+<div class="stat-cards">
+<div class="stat"><div class="k">状态</div><div class="v" id="stState" style="font-size:19px;padding-top:3px">待发车</div></div>
+<div class="stat"><div class="k">用时 / 赛道进度</div><div class="v mono"><span id="stLapTime">0.00</span><small> s · </small><span id="stLap">0</span><small> %</small></div></div>
+<div class="stat"><div class="k">元素基础分</div><div class="v mono"><span id="stBest">0</span><small> / 80 分</small></div></div>
+<div class="stat" id="stSpeedCard"><div class="k">车速</div><div class="v mono"><span id="stSpeed">0.00</span><small> m/s</small></div></div>
+<div class="stat"><div class="k">电池电压</div><div class="v mono"><span id="stVolt">11.10</span><small> V</small></div></div>
+</div>
+</div>
+
+<div class="layout">
+<!-- left column -->
+<div class="stack">
+<section class="card">
+<div class="stage-head">
+<div class="seg" role="group" aria-label="模式">
+<button id="modeRace" class="on">正式赛道一圈</button>
+<button id="modePark">停车练习</button>
+</div>
+<button class="btn" id="btnObs" aria-pressed="false">障碍：关</button>
+<div class="spacer"></div>
+<span class="sim-speed">倍速
+<span class="seg" role="group" aria-label="仿真倍速">
+<button data-speed="1" class="spd on">1×</button>
+<button data-speed="2" class="spd">2×</button>
+<button data-speed="4" class="spd">4×</button>
+</span>
+</span>
+</div>
+<canvas id="stage" width="1160" height="700"></canvas>
+<div class="banner" id="banner"></div>
+<div class="stage-head" style="margin:12px 0 0">
+<button class="btn primary" id="btnStart">▶ 发车（一圈）</button>
+<button class="btn" id="btnPause" disabled>暂停</button>
+<button class="btn danger" id="btnBrake" style="display:none">🛑 刹车（空格）</button>
+<button class="btn" id="btnReset">复位</button>
+<div class="spacer"></div>
+<span style="color:var(--ink2);font-size:12.5px">空格 = 发车 / 终点刹车 · 改参数实时生效，不用重新发车</span>
+</div>
+</section>
+
+<section class="card">
+<h2>三路电磁传感器 <span class="tag">左 PA0 · 中 PA1 · 右 PA2（ADC1）</span></h2>
+<div class="sensor-grid">
+<div class="sensor"><div class="name"><span>左 L</span><span>PA0</span></div><div class="val mono"><span id="sL">0.00</span><small> V</small></div><div class="bar"><i id="bL" style="width:0%"></i></div><div class="adc mono">ADC <span id="aL">0</span> / 4095</div></div>
+<div class="sensor"><div class="name"><span>中 M</span><span>PA1</span></div><div class="val mono"><span id="sM">0.00</span><small> V</small></div><div class="bar"><i id="bM" style="width:0%"></i></div><div class="adc mono">ADC <span id="aM">0</span> / 4095</div></div>
+<div class="sensor"><div class="name"><span>右 R</span><span>PA2</span></div><div class="val mono"><span id="sR">0.00</span><small> V</small></div><div class="bar"><i id="bR" style="width:0%"></i></div><div class="adc mono">ADC <span id="aR">0</span> / 4095</div></div>
+</div>
+<div class="err-read">
+<div class="cell"><div class="k">位置误差 error（-1 左偏 ~ +1 右偏）</div><div class="v mono" id="errVal">0.000</div></div>
+<div class="cell"><div class="k">三路信号和 sum（低于阈值判丢线）</div><div class="v mono"><span id="sumVal">0.00</span> V</div></div>
+<div class="cell"><div class="k">输出 PWM 左 / 右（PB6 / PB7）</div><div class="v mono"><span id="pwmL">0</span>% / <span id="pwmR">0</span>%</div></div>
+</div>
+</section>
+
+<section class="card">
+<h2>遥测曲线 <span class="tag">最近 30 秒 · 每 50ms 采样</span></h2>
+<div class="tele-grid">
+<div class="tele"><div class="cap"><b>位置误差</b><span class="mono" id="capErr">0.000</span></div><canvas id="chErr" width="560" height="92"></canvas></div>
+<div class="tele"><div class="cap"><b>PWM 左 / 右</b><span class="mono"><span id="capPwmL">0</span>% / <span id="capPwmR">0</span>%</span></div><canvas id="chPwm" width="560" height="92"></canvas></div>
+<div class="tele"><div class="cap"><b>车速</b><span class="mono" id="capSpd">0.00 m/s</span></div><canvas id="chSpd" width="560" height="92"></canvas></div>
+<div class="tele"><div class="cap"><b>电池电压</b><span class="mono" id="capVolt">11.10 V</span></div><canvas id="chVolt" width="560" height="92"></canvas></div>
+</div>
+</section>
+
+<section class="card" id="resultCard" style="display:none">
+<h2>成绩单</h2>
+<div class="score-big">
+<div class="cell"><div class="v mono" id="resTotal">--</div><div class="k">总用时（含停车罚时）秒</div></div>
+<div class="cell"><div class="v mono" id="resScore">--</div><div class="k">总分（基础 80 · 障碍 +10 待确认）</div></div>
+<div class="cell"><div class="v mono" id="resObs" style="font-size:19px;padding-top:5px">--</div><div class="k">障碍（附加 10 分 · 待裁判确认）</div></div>
+<div class="cell"><div class="v mono" id="resPark">--</div><div class="k">停车误差 mm（车头最前端）</div></div>
+</div>
+<table style="margin-top:12px">
+<thead><tr><th>项目</th><th class="num">得分</th><th class="num">满分</th><th>说明</th></tr></thead>
+<tbody id="lapTable"></tbody>
+</table>
+<p class="foot" id="resNote" style="margin-bottom:0"></p>
+</section>
+</div>
+
+<!-- right column -->
+<div class="stack">
+<section class="card">
+<h2>电池 · 3S 锂电</h2>
+<div class="batt-row">
+<div class="batt-shell"><div class="batt-fill" id="battFill" style="width:100%"></div></div>
+<div class="mono" style="font-weight:600"><span id="battSoc">100</span>%</div>
+</div>
+<div class="batt-nums" style="margin-top:10px">
+<div><div class="k">端电压（负载实时）</div><div class="v mono"><span id="battV">11.10</span> V</div></div>
+<div><div class="k">电流</div><div class="v mono"><span id="battI">0.0</span> A</div></div>
+<div><div class="k">空载电压</div><div class="v mono"><span id="battVoc">12.60</span> V</div></div>
+</div>
+<p class="foot" style="margin:8px 0 0">标称 11.1V。PWM 越大、加速越猛，电流越大，内阻压降越大，端电压掉得越狠，电机实际转速也跟着打折——高速发车时电压 sag 最明显。电量按演示节奏加速消耗。</p>
+</section>
+
+<section class="card">
+<h2>调车参数</h2>
+<div class="ctl">
+<label>基础速度（基础 PWM）<output id="oBase">55 %</output></label>
+<input type="range" id="pBase" min="15" max="95" step="1" value="55" />
+<div class="hint">直道巡航油门。太高进弯来不及修正，太低圈速吃亏。</div>
+</div>
+<div class="ctl">
+<label>差速增益 Kp<output id="oGain">62</output></label>
+<input type="range" id="pGain" min="0" max="130" step="1" value="62" />
+<div class="hint">误差 → 左右轮 PWM 差的放大倍数。太小弯道冲出去，太大直道左右蛇形。</div>
+</div>
+<div class="ctl">
+<label>丢线阈值（信号和）<output id="oThr">0.90 V</output></label>
+<input type="range" id="pThr" min="0.2" max="2.6" step="0.05" value="0.9" />
+<div class="hint">三路电压之和低于此值判定丢线，小车降速并按最后方向找线；持续 2 秒脱线判负。</div>
+</div>
+<div class="ctl">
+<label>电机平衡（左 + / 右 −）<output id="oBal">0 %</output></label>
+<input type="range" id="pBal" min="-15" max="15" step="0.5" value="0" />
+<div class="hint">补偿两个 TT 电机个体差异：直道总往一边偏，就往反方向补。</div>
+</div>
+<div class="ctl">
+<label>传感器增益<output id="oSGain">1.00 ×</output></label>
+<input type="range" id="pSGain" min="0.4" max="1.6" step="0.05" value="1" />
+<div class="hint">电磁杆放大倍数（对应实车运放增益/电位器）。增益大信号饱和，增益小弯道信号弱。</div>
+</div>
+<div class="ctl">
+<label>传感器噪声<output id="oNoise">0.03 V</output></label>
+<input type="range" id="pNoise" min="0" max="0.25" step="0.01" value="0.03" />
+<div class="hint">模拟赛道电流干扰和 ADC 抖动。噪声大时误差曲线毛刺多，需要更稳的参数。</div>
+</div>
+<div class="ctl" id="brakeCtl">
+<label>刹车强度<output id="oBrake">2.6 m/s²</output></label>
+<input type="range" id="pBrake" min="1.2" max="4.5" step="0.1" value="2.6" />
+<div class="hint">刹车后的减速度，停车练习和正式赛道终点停车都用它。车速越快，滑行距离越长。</div>
+</div>
+<div class="ctl" id="brakeLeadCtl" style="display:none">
+<label>终点自动刹车提前量<output id="oBrakeLead">0 mm</output></label>
+<input type="range" id="pBrakeLead" min="0" max="120" step="1" value="0" />
+<div class="hint">正式赛道专用：车头（车身最前端）距停车线还有这么多 mm 时自动开始刹车。0 = 关，用手动刹车。让滑行距离约等于提前量，停车误差最小。</div>
+</div>
+</section>
+
+<section class="card">
+<h2>分项计分</h2>
+<table>
+<tbody>
+<tr><td>小 S 弯（基础循迹）</td><td class="num"><span id="scS">—</span> / 10</td></tr>
+<tr><td>十字路口（必须直行）</td><td class="num"><span id="scCross">—</span> / 20</td></tr>
+<tr><td>环岛（绕一圈正确驶出）</td><td class="num"><span id="scRound">—</span> / 30</td></tr>
+<tr><td>全程完成</td><td class="num"><span id="scFull">—</span> / 20</td></tr>
+<tr><td>基础分合计</td><td class="num"><span id="scBase">0</span> / 80</td></tr>
+<tr><td>障碍（可选 · 长直道纸箱）</td><td class="num" id="scObs">未启用</td></tr>
+<tr><td><b>当前总分</b></td><td class="num"><b id="scTotal">0</b></td></tr>
+</tbody>
+</table>
+<p class="foot" style="margin-bottom:0">判定（模拟器口径）：小 S 弯循迹通过且未丢线得 10，丢线后找回得 5；十字小环绕行一周并直线驶出得 20，偏离主线得 0；环岛完整绕行并正确驶出得 30，只进不出或方向错得一半 15。障碍附加 10 分的原文情形是出赛道绕过障碍、再回到赛道完成后续任务；撞开通过是否得这 10 分原文未明确，模拟器不默认计入，标「待裁判确认」。完赛后成绩单汇总用时与停车罚时。</p>
+</section>
+
+<section class="card">
+<h2>停车罚时对照</h2>
+<table>
+<thead><tr><th>停车误差</th><th class="num">罚时</th></tr></thead>
+<tbody id="parkTable">
+<tr data-lo="0" data-hi="10"><td>≤ 10 mm</td><td class="num">不扣分</td></tr>
+<tr data-lo="11" data-hi="30"><td>11 – 30 mm</td><td class="num">+3 s</td></tr>
+<tr data-lo="31" data-hi="50"><td>31 – 50 mm</td><td class="num">+5 s</td></tr>
+<tr data-lo="51" data-hi="70"><td>51 – 70 mm</td><td class="num">+8 s</td></tr>
+<tr data-lo="71" data-hi="99999"><td>&gt; 70 mm</td><td class="num">+12 s</td></tr>
+</tbody>
+</table>
+<p class="foot" style="margin-bottom:0">误差 = 车身最前端停稳位置与停车线的距离，停车线就在起点斑马线处，电磁杆前瞻不计入停车位置。正式赛道跑完一圈回到斑马线时刹车停车，罚时计入总成绩；停车练习模式可单独练。</p>
+</section>
+
+<section class="card">
+<h2>参数预设</h2>
+<div class="preset-list" id="presetList"></div>
+<div class="save-row" style="margin-top:10px">
+<input id="presetName" type="text" placeholder="给当前参数起个名字，如：决赛版" maxlength="16" />
+<button class="btn primary" id="btnSavePreset">存档</button>
+</div>
+<div class="ctl-row" style="margin-top:10px">
+<button class="btn" id="btnExport">导出参数 JSON</button>
+<button class="btn" id="btnCopyCode">复制 C 参数代码</button>
+</div>
+<details class="codebox">
+<summary>当前参数 → C 代码（V1.4 接线）</summary>
+<pre class="code" id="codeOut"></pre>
+</details>
+</section>
+
+<section class="card">
+<h2>赛道说明（第十一届 · 电磁组）</h2>
+<p style="margin:0;font-size:13.5px">
+白色 KT 板封闭环线，橙色虚线 = 电磁引导线，红色箭头 = 行驶路线方向（按官方路线图）。
+左侧边是<b>发车区</b>：从斑马线向上发车（规则上发车方向任意；车尾不越斑马线最后方，
+车身任何部分不越计时起跑线）。顶边长直道中间有<b>黑色路障块</b>，路线在其下方绕 U 形弯；
+右侧边是连续 <b>S 弯</b>（顺利通过 10 分）；底边向左后北上，底部偏右是<b>环岛</b>
+（进入、绕一周、从正确方向驶出，30 分；只进不出或方向错得 15 分），环岛出口北行
+与来路交叉，须<b>直行</b>；中间偏左的小圆环是<b>十字路口</b>的弯道（进环绕一周后
+直线驶出，不拐进分支，20 分）；最后回左侧发车区<b>斑马线附近停车</b>
+（跑完全程 20 分；按车身最前端计停车位置，不计电磁杆前瞻）。
+<b>障碍为可选项</b>：入场先向裁判申报是否添加；添加时只出现在长直道上，
+是与赛道等宽的红色纸盒（模拟器放在底边长直道），障碍点前后 30cm 内允许出赛道
+绕行或撞开通过，其余位置出界算失败（三个轮子同时出界算冲出赛道）。
+撞开通过是否得附加 10 分原文未明确，模拟器标「待裁判确认」、不默认计入总分。
+赛道几何按路线图比例绘制，精确尺寸以实际赛道为准。车身宽按规则上限 200mm 绘制。
+</p>
+</section>
+</div>
+</div>
+</div>
+
+<script>
+"use strict";
+/* ============================================================
+风磁电车调车模拟器（完整版）
+物理模型对齐实车：三路模拟电磁杆(PA0/PA1/PA2 ADC)、
+L298N 差速、3S 锂电负载压降。世界单位 = mm。
+============================================================ */
+
+/* ---------- 参数 ---------- */
+var P = {
+base: 55, // 基础 PWM %
+gain: 62, // 差速增益 Kp
+thr: 0.90, // 丢线阈值 V（三路之和）
+bal: 0, // 电机平衡 %
+sgain: 1.0, // 传感器增益
+noise: 0.03, // 传感器噪声 V
+brake: 2.6, // 刹车减速度 m/s^2
+brakeLead: 0 // 终点自动刹车提前量 mm（车头距停车线，0=关）
+};
+
+/* ---------- 赛道：第十一届电磁组赛道（按官方路线图 09/26 绘制） ----------
+白色 KT 板封闭环线，红线为行驶路线。顺序：左侧发车区斑马线向上发车 →
+顶边长直道（黑色路障处向下绕 U 形弯）→ 右侧连续 S 弯 → 底边向左 →
+大环岛（底部偏右，绕一周从北侧驶出，出口与来路交叉须直行）→
+十字小圆环（中间偏左，绕一周后直线驶出）→ 回左侧发车区斑马线停车。
+几何按路线图比例绘制，精确尺寸以实际赛道为准。 */
+var WORLD_W = 4200, WORLD_H = 2600; // mm
+var CTRL = [
+[520,1250],[520,700],[650,430],[1100,400],[1700,400],
+[2150,400],[2280,560],[2480,660],[2680,560],[2820,420],[3250,420],
+[3600,520],[3680,800],[3450,1050],[3650,1330],[3620,1650],[3500,2000],
+[3200,2180],[2600,2200],[2050,2200],[1850,2180],[1830,1900],
+[1900,1630],[2300,1630],[2850,1630],[3050,1680],[3110,1820],
+[3000,2080],[2780,2150],[2560,2080],[2450,1820],[2480,1560],
+[2450,1200],[2450,900],[2250,640],[1900,580],[1600,620],
+[1500,900],[1500,1250],[1460,1520],[1380,1760],[1150,1830],
+[1000,1790],[840,1520],[1000,1250],[1150,1210],[1300,1250],
+[1460,1520],[1500,1850],[1400,2180],[950,2220],[600,2150],[520,1750]
+];
+function catmullRom(pts, samplesPerSeg){
+var out = [], n = pts.length;
+for (var i=0;i<n;i++){
+var p0=pts[(i-1+n)%n], p1=pts[i], p2=pts[(i+1)%n], p3=pts[(i+2)%n];
+for (var j=0;j<samplesPerSeg;j++){
+var t=j/samplesPerSeg, t2=t*t, t3=t2*t;
+out.push([
+0.5*((2*p1[0])+(-p0[0]+p2[0])*t+(2*p0[0]-5*p1[0]+4*p2[0]-p3[0])*t2+(-p0[0]+3*p1[0]-3*p2[0]+p3[0])*t3),
+0.5*((2*p1[1])+(-p0[1]+p2[1])*t+(2*p0[1]-5*p1[1]+4*p2[1]-p3[1])*t2+(-p0[1]+3*p1[1]-3*p2[1]+p3[1])*t3)
+]);
+}
+}
+return out;
+}
+var SAMPLES = 26;
+var TRACK = catmullRom(CTRL, SAMPLES);
+var TRACK_LEN = 0, CUM = [0];
+for (var ti=1; ti<=TRACK.length; ti++){
+var a=TRACK[ti-1], b=TRACK[ti%TRACK.length];
+TRACK_LEN += Math.hypot(b[0]-a[0], b[1]-a[1]);
+CUM.push(TRACK_LEN);
+}
+/* 元素区段：以控制点序号换算成点索引与沿线距离 */
+function ctrlIdx(i){ return i*SAMPLES; }
+var ZONE = { obs:ctrlIdx(18), sStart:ctrlIdx(11), sEnd:ctrlIdx(16), roundStart:ctrlIdx(24), roundEnd:ctrlIdx(31), crossStart:ctrlIdx(38), crossEnd:ctrlIdx(47) };
+var ZD = { obs:CUM[ZONE.obs], sStart:CUM[ZONE.sStart], sEnd:CUM[ZONE.sEnd], roundStart:CUM[ZONE.roundStart], roundEnd:CUM[ZONE.roundEnd], crossStart:CUM[ZONE.crossStart], crossEnd:CUM[ZONE.crossEnd] };
+var CROSS_X = { x:2465, y:1630 }; // 环岛出口北行与来路横段的交叉点
+var BARRIER_POS = { x:2480, y:400 }; // 顶边黑色路障块（路线绕其下方 U 形通过）
+/* 障碍赛段：在上方弯道区（控制点 7~11 一带）放锥桶，交错偏在导线两侧 */
+function trackPointAt(s){ // s: 沿赛道距离 mm → 坐标+切向
+s = ((s % TRACK_LEN) + TRACK_LEN) % TRACK_LEN;
+var lo=0, hi=CUM.length-1;
+while (lo<hi-1){ var mid=(lo+hi)>>1; if (CUM[mid]<=s) lo=mid; else hi=mid;}
+var i=lo, segLen=CUM[i+1]-CUM[i] || 1, f=(s-CUM[i])/segLen;
+var p=TRACK[i%TRACK.length], q=TRACK[(i+1)%TRACK.length];
+return { x:p[0]+(q[0]-p[0])*f, y:p[1]+(q[1]-p[1])*f,
+tx:(q[0]-p[0])/segLen, ty:(q[1]-p[1])/segLen, idx:i};
+}
+/* 障碍（可选）：长直道上一个与赛道等宽的红色纸箱 */
+var obstacleOn = false;
+var OBS_LEN = 260; // 纸箱沿赛道长度（示意比例）
+var box = { hit:false, push:0, x:0, y:0, tx:1, ty:0, s:0 };
+function resetBox(){
+var pt = trackPointAt(ZD.obs);
+box = { hit:false, push:0, x:pt.x, y:pt.y, tx:pt.tx, ty:pt.ty, s:ZD.obs };
+}
+resetBox();
+
+/* ---------- 小车 ---------- */
+var CAR = { len: 300, wid: 200, wheelBase: 210, sensorFwd: 150, sensorGap: 42};
+var car, batt, race, park, mode = "race", simSpeed = 1, paused = false;
+function resetCar(onTrack){
+var start = trackPointAt(0);
+car = {
+x: start.x, y: start.y, th: Math.atan2(start.ty, start.tx),
+vl: 0, vr: 0, pwmL: 0, pwmR: 0,
+err: 0, lastErr: 0, sum: 0, sens: [0,0,0],
+sIdx: 0, prog: 0, lastProg: 0, dist: 0,
+lostTime: 0, lostCount: 0, wasLost: false,
+maxSpeedLap: 0, offTrack: false
+};
+if (!onTrack){ car.x = 500; car.y = WORLD_H/2; car.th = 0;}
+}
+function resetBatt(){ batt = { soc: 1.0, v: 12.6, i: 0, voc: 12.6};}
+function resetRace(){
+race = { running:false, done:false, t:0, lap:0, lapStart:0, laps:[], best:null,
+scores:{ s:null, cross:null, round:null, full:null, obs:null },
+sMaxDev:0, sLost:false, crossMaxDev:0, crossLost:false,
+roundMaxDev:0, roundLost:false, roundEntered:false,
+brakePhase:false, braking:false, autoBrake:false, parkErr:null, parkPenalty:0, obsPassed:false };
+resetBox();
+}
+function resetPark(){
+park = { running:false, braking:false, done:false, t:0, x0: 350, targetX: 3050, errMm:null, penalty:0, v0:0};
+car.x = park.x0; car.y = WORLD_H/2; car.th = 0; car.vl = car.vr = 0;
+}
+resetCar(true); resetBatt(); resetRace();
+
+/* ---------- 传感器模型 ---------- */
+function gaussNoise(){ // 近似正态噪声
+return (Math.random()+Math.random()+Math.random()-1.5)/1.5;
+}
+function sense(){
+var fx = Math.cos(car.th), fy = Math.sin(car.th);
+var nx = -fy, ny = fx;
+var cx = car.x + fx*CAR.sensorFwd, cy = car.y + fy*CAR.sensorFwd;
+var vals = [];
+for (var k=-1;k<=1;k++){
+var sx = cx + nx*k*CAR.sensorGap, sy = cy + ny*k*CAR.sensorGap;
+// 到导线的最近距离：在当前进度索引附近搜索
+var best = 1e12;
+for (var j=-70;j<=70;j++){
+var p = TRACK[(car.sIdx+j+TRACK.length)%TRACK.length];
+var d = (p[0]-sx)*(p[0]-sx)+(p[1]-sy)*(p[1]-sy);
+if (d<best) best=d;
+}
+var dist = Math.sqrt(best);
+var v = P.sgain * 3.0 * Math.exp(-Math.pow(dist/58, 2));
+v += gaussNoise()*P.noise + (Math.random()-0.5)*0.008;
+vals.push(Math.max(0, Math.min(3.3, v)));
+}
+return vals;
+}
+/* 停车模式：直道导线沿 y=WORLD_H/2，传感器读数按横向距离算 */
+function sensePark(){
+var vals = [];
+for (var k=-1;k<=1;k++){
+var sy = car.y + k*CAR.sensorGap; // 车头朝 +x，横向即 y 方向
+var dist = Math.abs(sy - WORLD_H/2);
+var v = P.sgain * 3.0 * Math.exp(-Math.pow(dist/58, 2));
+v += gaussNoise()*P.noise + (Math.random()-0.5)*0.008;
+vals.push(Math.max(0, Math.min(3.3, v)));
+}
+return vals;
+}
+/* 更新赛道进度（最近点索引 + 累计里程） */
+function updateProgress(){
+var best=1e12, bi=car.sIdx;
+for (var j=-90;j<=90;j++){
+var idx=(car.sIdx+j+TRACK.length)%TRACK.length;
+var p=TRACK[idx];
+var d=(p[0]-car.x)*(p[0]-car.x)+(p[1]-car.y)*(p[1]-car.y);
+if (d<best){ best=d; bi=idx;}
+}
+var prevS = CUM[car.sIdx], newS = CUM[bi];
+var ds = newS - prevS;
+if (ds < -TRACK_LEN/2) ds += TRACK_LEN;
+if (ds > TRACK_LEN/2) ds -= TRACK_LEN;
+car.sIdx = bi;
+car.prog += ds;
+car.centerDist = Math.sqrt(best);
+}
+
+/* 出界计数：车轮到导线中心距离超过赛道半宽 215mm（+3mm 采样容差 = 218）视为该轮出界 */
+function wheelsOut(){
+var fx = Math.cos(car.th), fy = Math.sin(car.th), nx = -fy, ny = fx;
+var out = 0;
+var offs = [[105,100],[105,-100],[-105,100],[-105,-100]];
+for (var w=0; w<4; w++){
+var wx = car.x + fx*offs[w][0] + nx*offs[w][1];
+var wy = car.y + fy*offs[w][0] + ny*offs[w][1];
+var best = 1e12;
+for (var j=-45;j<=45;j++){
+var p = TRACK[(car.sIdx+j+TRACK.length)%TRACK.length];
+var d = (p[0]-wx)*(p[0]-wx)+(p[1]-wy)*(p[1]-wy);
+if (d<best) best=d;
+}
+if (Math.sqrt(best) > 218) out++;
+}
+return out;
+}
+
+/* ---------- 电池模型 ---------- */
+function stepBattery(dt, pwmL, pwmR, accel){
+var voc = 9.6 + 3.0*batt.soc; // 3S: 9.6V 空 ~ 12.6V 满
+var load = (Math.abs(pwmL)+Math.abs(pwmR))/200; // 0..1
+var cur = 0.25 + 6.8*load + Math.max(0, accel)*1.4; // A
+var v = voc - cur*0.12; // 内阻 0.12Ω 压降
+batt.voc = voc; batt.i = cur; batt.v = Math.max(8.6, v);
+batt.soc = Math.max(0, batt.soc - cur*dt/(2.2*3600)*15); // 演示加速消耗
+return batt.v/11.1; // 电机电压系数（相对标称 11.1V）
+}
+
+/* ---------- 主物理步进 ---------- */
+var MAXWHEEL = 1350; // 100% PWM、11.1V 时轮线速度 mm/s
+function physStep(dt){
+var running = (mode==="race" && race.running) || (mode==="park" && park.running);
+var sens = (mode==="park") ? sensePark() : sense();
+car.sens = sens;
+var sum = sens[0]+sens[1]+sens[2];
+car.sum = sum;
+// 误差始终由三路电压实时加权（静止时也成立，面板/曲线/控制三者一致）
+if (sum >= P.thr){ car.err = (sens[2]-sens[0]) / Math.max(sum, 0.001); car.lastErr = car.err; }
+else car.err = car.lastErr;
+
+if (running && mode==="race" && !race.braking && P.brakeLead>0){
+var remF = TRACK_LEN - (car.prog + CAR.len/2);
+if (car.prog > TRACK_LEN*0.5 && remF <= P.brakeLead && remF > -60){
+race.braking = true;
+flashBanner("终点自动刹车：车头距停车线 "+Math.max(0,Math.round(remF))+" mm 时触发（提前量 "+P.brakeLead+" mm）。","ok");
+}
+}
+var targetL=0, targetR=0, accel=0;
+if (running && mode==="race" && race.braking){
+targetL = 0; targetR = 0; // 终点刹车中
+}
+else if (running && mode==="race"){
+var lost = sum < P.thr;
+if (lost){
+car.lostTime += dt;
+if (!car.wasLost){ car.lostCount++; car.wasLost = true;}
+var slow = P.base*0.45;
+targetL = slow + P.gain*car.err*0.7 + P.bal;
+targetR = slow - P.gain*car.err*0.7 - P.bal;
+if (car.lostTime > 2.0 &&!race.done){ endRace(false, "持续丢线超过 2 秒，判定脱线，本次成绩无效。");}
+} else {
+car.lostTime = 0; car.wasLost = false;
+var diff = P.gain * car.err;
+targetL = P.base + diff + P.bal;
+targetR = P.base - diff - P.bal;
+}
+}
+if (running && mode==="park"){
+if (!park.braking){
+targetL = targetR = P.base; // 直道冲向停车线
+} else {
+targetL = targetR = 0;
+}
+}
+targetL = Math.max(0, Math.min(100, targetL));
+targetR = Math.max(0, Math.min(100, targetR));
+car.pwmL = targetL; car.pwmR = targetR;
+
+// 电池 + 电机一阶响应
+var vPrev = (car.vl+car.vr)/2;
+var vfac = stepBattery(dt, targetL, targetR, 0);
+var goalL = targetL/100*MAXWHEEL*vfac, goalR = targetR/100*MAXWHEEL*vfac;
+if ((mode==="park" && park.braking) || (mode==="race" && race.braking)){
+// 刹车：按设定减速度收轮速
+var dec = P.brake*1000*dt;
+car.vl = Math.max(0, car.vl - dec); car.vr = Math.max(0, car.vr - dec);
+} else {
+var tau = 0.14; // 电机时间常数 s
+car.vl += (goalL-car.vl)*Math.min(1, dt/tau);
+car.vr += (goalR-car.vr)*Math.min(1, dt/tau);
+if (!running){ car.vl *= Math.pow(0.02, dt); car.vr *= Math.pow(0.02, dt);}
+}
+accel = ((car.vl+car.vr)/2 - vPrev)/Math.max(dt,0.001)/1000; // m/s^2
+stepBattery(0, targetL, targetR, accel); // 用加速度修正电流显示
+
+// 差速运动学（注意：世界坐标 y 向下，角速度符号与 y 向上时相反）
+var v = (car.vl+car.vr)/2, om = (car.vl-car.vr)/CAR.wheelBase;
+car.th += om*dt;
+car.x += Math.cos(car.th)*v*dt;
+car.y += Math.sin(car.th)*v*dt;
+car.speed = v/1000; // m/s
+
+if (mode==="race" && race.running){
+race.t += dt;
+updateProgress();
+if (car.speed > car.maxSpeedLap) car.maxSpeedLap = car.speed;
+var prog = car.prog, lostNow = sum < P.thr, dev = car.centerDist || 0;
+// ---- 分项判定：记录各元素区段内的最大偏离与丢线 ----
+if (prog >= ZD.sStart && prog <= ZD.sEnd){ if (dev > race.sMaxDev) race.sMaxDev = dev; if (lostNow) race.sLost = true; }
+if (prog >= ZD.crossStart && prog <= ZD.crossEnd){ if (dev > race.crossMaxDev) race.crossMaxDev = dev; if (lostNow) race.crossLost = true; }
+if (prog >= ZD.roundStart && prog <= ZD.roundEnd){ race.roundEntered = true; if (dev > race.roundMaxDev) race.roundMaxDev = dev; if (lostNow) race.roundLost = true; }
+if (race.scores.s===null && prog > ZD.sEnd){
+race.scores.s = (!race.sLost && race.sMaxDev <= 200) ? 10 : 5;
+flashBanner("小 S 弯通过："+race.scores.s+" 分"+(race.scores.s<10?"（区段内丢线/偏离较大）":""), "ok");
+}
+if (race.scores.round===null && prog > ZD.roundEnd){
+race.scores.round = (race.roundEntered && !race.roundLost && race.roundMaxDev <= 230) ? 30 : 15;
+flashBanner("环岛驶出："+race.scores.round+" 分"+(race.scores.round<30?"（只进不出/方向错口径：只得一半）":""), "ok");
+}
+if (race.scores.cross===null && prog > ZD.crossEnd){
+race.scores.cross = (!race.crossLost && race.crossMaxDev <= 200) ? 20 : 0;
+flashBanner("十字通过："+race.scores.cross+" 分"+(race.scores.cross<20?"（偏离主线，未按直行通过）":""), race.scores.cross? "ok":"warn");
+}
+// ---- 障碍：红色纸盒（可选）----
+if (obstacleOn){
+if (box.hit && box.push < 1) box.push = Math.min(1, box.push + dt*1.6);
+if (!box.hit && Math.hypot(box.x-car.x, box.y-car.y) < 115){
+box.hit = true; car.vl *= 0.45; car.vr *= 0.45;
+flashBanner("撞上红色纸盒！撞开通过是否得附加 10 分原文未明确，待裁判确认。","warn");
+}
+if (!race.obsPassed && prog > box.s + 340){ race.obsPassed = true; flashBanner("已通过障碍区并回到赛道（附加 10 分待裁判确认，不默认计入）。","ok"); }
+}
+// ---- 出界判定：三个轮子同时出界 = 冲出赛道（障碍点前后 30cm 内豁免）----
+var inObsZone = obstacleOn && prog > box.s-300 && prog < box.s+300+OBS_LEN;
+if (!inObsZone && !race.done && wheelsOut() >= 3){
+endRace(false, "三个轮子同时出界，判定冲出赛道，本次失败。（只有障碍点前后 30cm 区域内允许出赛道）");
+}
+// ---- 回到起点：过线后进入停车阶段 ----
+var lapNow = Math.floor(car.prog / TRACK_LEN);
+if (lapNow > race.lap){
+race.lap = lapNow;
+race.laps.push({ t: race.t, max: car.maxSpeedLap, lost: car.lostCount });
+if (race.scores.full===null) race.scores.full = 20;
+race.brakePhase = true;
+showBanner(race.braking ? "已回到发车区！自动刹车进行中，等车停稳看停车误差。" : "已回到发车区！立刻按【刹车 / 空格】停在斑马线处——按车身最前端计，±10mm 内不罚时。","ok", true);
+syncButtons();
+}
+if (race.brakePhase && !race.braking && car.prog > TRACK_LEN + 520){
+race.braking = true; race.autoBrake = true;
+flashBanner("冲过斑马线太多，自动刹车！停车误差会很大。","warn");
+syncButtons();
+}
+if (race.braking && car.speed <= 0.001 && !race.done){
+car.vl = car.vr = 0;
+finishRacePark();
+}
+}
+if (mode==="park" && park.running){
+park.t += dt;
+if (park.braking && car.speed <= 0.001){
+car.vl = car.vr = 0;
+finishPark();
+}
+if (car.x > WORLD_W-260 &&!park.braking){ // 冲过头自动刹停判定
+park.braking = true;
+}
+}
+}
+
+/* ---------- 比赛流程 ---------- */
+var bannerTimer = null;
+function showBanner(msg, kind, sticky){
+var b = document.getElementById("banner");
+b.textContent = msg; b.className = "banner show "+(kind||"warn");
+if (bannerTimer) clearTimeout(bannerTimer);
+if (!sticky) bannerTimer = setTimeout(function(){ b.className="banner";}, 4200);
+}
+function flashBanner(m,k){ showBanner(m,k,false);}
+function startRace(){
+resetCar(true); resetRace(); race.running = true; race.t = 0; race.lapStart = 0;
+car.prog = 0;
+document.getElementById("resultCard").style.display = "none";
+showBanner("发车！从斑马线向上出发：一圈依次过 S 弯、环岛、十字，最后回发车区斑马线刹车停车。"+(P.brakeLead>0 ? "终点自动刹车已开：车头距停车线 "+P.brakeLead+" mm 时自动刹车。" : ""),"ok");
+syncButtons();
+}
+function finishRacePark(){
+race.running = false; race.done = true;
+// 停车误差：以车身最前端（车心 + 车长/2 沿车头方向）相对起点斑马线（s=0）的沿线距离计，电磁杆前瞻不计
+var rel = ((car.prog + CAR.len/2) % TRACK_LEN + TRACK_LEN) % TRACK_LEN;
+if (rel > TRACK_LEN/2) rel -= TRACK_LEN;
+race.parkErr = Math.round(rel);
+race.parkPenalty = parkPenalty(Math.abs(race.parkErr));
+if (park){ park.errMm = race.parkErr; park.penalty = race.parkPenalty; }
+if (race.scores.full===null) race.scores.full = (car.prog >= TRACK_LEN-650) ? 20 : 0;
+if (race.scores.s===null) race.scores.s = 0;
+if (race.scores.cross===null) race.scores.cross = 0;
+if (race.scores.round===null) race.scores.round = race.roundEntered ? 15 : 0;
+showResults();
+showBanner("停稳！停车误差 "+race.parkErr+" mm（"+(race.parkErr>0?"过线":"未到线")+"，按车身最前端计），罚时 +"+race.parkPenalty+" 秒。成绩见下方成绩单。", race.parkPenalty===0? "ok":"warn", true);
+syncButtons();
+}
+function endRace(invalid, msg){
+race.running = false; race.done = true;
+showBanner(msg, "bad", true);
+syncButtons();
+}
+function finishPark(){
+park.running = false; park.done = true;
+var frontX = car.x + CAR.len/2; // 以车身最前端为停车测量点，电磁杆前瞻不计
+park.errMm = Math.round(frontX - park.targetX);
+park.penalty = parkPenalty(Math.abs(park.errMm));
+highlightParkRow(Math.abs(park.errMm));
+var msg = "停稳！停车误差 "+park.errMm+" mm（"+(park.errMm>0?"过线":"未到线")+"，按车身最前端计），罚时 +"+park.penalty+" 秒。";
+showBanner(msg, park.penalty===0? "ok":"warn", true);
+syncButtons();
+}
+function parkPenalty(a){
+if (a<=10) return 0; if (a<=30) return 3; if (a<=50) return 5; if (a<=70) return 8; return 12;
+}
+function highlightParkRow(a){
+var rows = document.querySelectorAll("#parkTable tr");
+rows.forEach(function(r){
+var lo=+r.dataset.lo, hi=+r.dataset.hi;
+r.classList.toggle("hit", a>=lo && a<=hi);
+});
+}
+function baseScore(){ var s = race.scores; return (s.s||0)+(s.cross||0)+(s.round||0)+(s.full||0); }
+function showResults(){
+var pen = race.parkPenalty || 0;
+document.getElementById("resultCard").style.display = "block";
+document.getElementById("resTotal").textContent = (race.t + pen).toFixed(2);
+document.getElementById("resScore").textContent = baseScore();
+document.getElementById("resObs").textContent = !obstacleOn ? "未启用" : (race.obsPassed ? "通过·待确认" : "未通过");
+document.getElementById("resPark").textContent = race.parkErr;
+var rows = [
+["小 S 弯（基础循迹）", race.scores.s, 10, race.sLost ? "区段内丢线/偏离，找回后通过" : "循迹通过"],
+["十字路口（绕一周直线驶出）", race.scores.cross, 20, race.scores.cross ? "直行通过" : "偏离主线"],
+["环岛（进出完整）", race.scores.round, 30, race.scores.round===30 ? "绕一周正确驶出" : "只进不出/方向错口径：一半"],
+["全程完成", race.scores.full, 20, "回到发车区斑马线停车"],
+["障碍（可选）", obstacleOn ? (race.obsPassed ? "通过" : 0) : "未启用", 10, obstacleOn ? "附加分待裁判确认，不计入总分" : "未申报添加"]
+];
+var tb = document.getElementById("lapTable"); tb.innerHTML = "";
+rows.forEach(function(r){
+var tr = document.createElement("tr");
+tr.innerHTML = "<td>"+r[0]+"</td><td class='num'>"+r[1]+"</td><td class='num'>"+r[2]+"</td><td>"+r[3]+"</td>";
+tb.appendChild(tr);
+});
+document.getElementById("resNote").textContent =
+"全程用时 "+race.t.toFixed(2)+"s，停车罚时 +"+pen+"s（误差 "+race.parkErr+"mm，按车身最前端计）；基础分 "+baseScore()+"/80。"+
+(obstacleOn ? (race.obsPassed ? "障碍已通过：绕行通过的附加 10 分原文明确，撞开通过是否得分未明确，待裁判确认，故未计入总分。" : "障碍未通过，附加分不计。") : "本次未启用障碍。")+
+" 调参思路：跑不完先降基础速度，弯道冲线加增益，直道蛇形减增益或降速。";
+}
+
+/* ---------- 渲染 ---------- */
+var cv = document.getElementById("stage"), ctx = cv.getContext("2d");
+function sx(x){ return x/WORLD_W*cv.width; }
+function sy(y){ return y/WORLD_H*cv.height; }
+function ss(v){ return v/WORLD_W*cv.width; }
+function cssVar(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+function drawStage(){
+  var W=cv.width, H=cv.height;
+  ctx.clearRect(0,0,W,H);
+  ctx.strokeStyle = cssVar("--line"); ctx.lineWidth = 1; ctx.globalAlpha = .5;
+  ctx.beginPath();
+  for (var gx=0; gx<=WORLD_W; gx+=300){ ctx.moveTo(sx(gx),0); ctx.lineTo(sx(gx),H); }
+  for (var gy=0; gy<=WORLD_H; gy+=300){ ctx.moveTo(0,sy(gy)); ctx.lineTo(W,sy(gy)); }
+  ctx.stroke(); ctx.globalAlpha = 1;
+
+  if (mode==="race"){
+    ctx.lineJoin="round"; ctx.lineCap="round";
+    // KT 板赛道带
+    ctx.strokeStyle = cssVar("--track"); ctx.lineWidth = ss(430);
+    ctx.beginPath();
+    TRACK.forEach(function(p,i){ i?ctx.lineTo(sx(p[0]),sy(p[1])):ctx.moveTo(sx(p[0]),sy(p[1])); });
+    ctx.closePath(); ctx.stroke();
+    // 元素区段高亮：S弯 / 环岛 / 十字小环
+    function strokeRange(a, b, color){
+      ctx.strokeStyle = color; ctx.globalAlpha = .20; ctx.lineWidth = ss(430);
+      ctx.beginPath();
+      for (var i=a;i<=b;i++){ var p=TRACK[i%TRACK.length]; i===a?ctx.moveTo(sx(p[0]),sy(p[1])):ctx.lineTo(sx(p[0]),sy(p[1])); }
+      ctx.stroke(); ctx.globalAlpha = 1;
+    }
+    strokeRange(ZONE.sStart, ZONE.sEnd, cssVar("--chart-err"));
+    strokeRange(ZONE.roundStart, ZONE.roundEnd, cssVar("--ok"));
+    strokeRange(ZONE.crossStart, ZONE.crossEnd, cssVar("--warn"));
+    // 电磁引导线
+    ctx.strokeStyle = cssVar("--wire"); ctx.lineWidth = 3;
+    ctx.setLineDash([14,9]);
+    ctx.beginPath();
+    TRACK.forEach(function(p,i){ i?ctx.lineTo(sx(p[0]),sy(p[1])):ctx.moveTo(sx(p[0]),sy(p[1])); });
+    ctx.closePath(); ctx.stroke(); ctx.setLineDash([]);
+    // 交叉点标记（环岛出口北行 × 来路横段）
+    ctx.strokeStyle = "#fff"; ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(sx(CROSS_X.x-60), sy(CROSS_X.y-60)); ctx.lineTo(sx(CROSS_X.x+60), sy(CROSS_X.y+60));
+    ctx.moveTo(sx(CROSS_X.x+60), sy(CROSS_X.y-60)); ctx.lineTo(sx(CROSS_X.x-60), sy(CROSS_X.y+60));
+    ctx.stroke();
+    // 顶边黑色路障块（路线绕其下方）
+    ctx.fillStyle = cssVar("--ink");
+    ctx.fillRect(sx(BARRIER_POS.x-55), sy(BARRIER_POS.y-215), Math.max(3,ss(110)), ss(300));
+    ctx.fillStyle = cssVar("--ink2"); ctx.font="600 13px 'Noto Sans SC',sans-serif"; ctx.textAlign="center";
+    ctx.fillText("路障", sx(BARRIER_POS.x), sy(BARRIER_POS.y-260));
+    // 发车区斑马线 + 起跑/停车线（在 s=0 处，垂直于路线）
+    var st = trackPointAt(0), nx0 = -st.ty, ny0 = st.tx;
+    ctx.strokeStyle = "#fff";
+    for (var zk=-2; zk<=2; zk++){
+      var zp = trackPointAt(zk*52);
+      ctx.lineWidth = Math.max(3, ss(30));
+      ctx.beginPath();
+      ctx.moveTo(sx(zp.x - nx0*205), sy(zp.y - ny0*205));
+      ctx.lineTo(sx(zp.x + nx0*205), sy(zp.y + ny0*205));
+      ctx.stroke();
+    }
+    ctx.strokeStyle = cssVar("--bad2"); ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(sx(st.x - nx0*225), sy(st.y - ny0*225));
+    ctx.lineTo(sx(st.x + nx0*225), sy(st.y + ny0*225));
+    ctx.stroke();
+    // 行驶方向箭头（沿红线路线）
+    ctx.fillStyle = cssVar("--bad2");
+    [0.04,0.10,0.155,0.21,0.27,0.34,0.40,0.46,0.53,0.60,0.67,0.74,0.81,0.88,0.95].forEach(function(f){
+      var ap = trackPointAt(f*TRACK_LEN), ang = Math.atan2(ap.ty, ap.tx);
+      ctx.save(); ctx.translate(sx(ap.x), sy(ap.y)); ctx.rotate(ang);
+      ctx.beginPath(); ctx.moveTo(ss(85),0); ctx.lineTo(ss(-55),ss(-52)); ctx.lineTo(ss(-55),ss(52)); ctx.closePath(); ctx.fill();
+      ctx.restore();
+    });
+    // 障碍：红色纸盒（与赛道等宽）+ 前后 30cm 允许出界区
+    if (obstacleOn){
+      ctx.save();
+      ctx.translate(sx(box.x), sy(box.y)); ctx.rotate(Math.atan2(box.ty, box.tx));
+      ctx.strokeStyle = cssVar("--ok"); ctx.globalAlpha=.5; ctx.lineWidth = Math.max(3,ss(26));
+      ctx.strokeRect(-ss(300+OBS_LEN/2), -ss(215), ss(600+OBS_LEN), ss(430));
+      ctx.globalAlpha = 1;
+      ctx.translate(ss(box.push*260), -ss(box.push*330)); ctx.rotate(box.push*0.5);
+      ctx.fillStyle = "#e03131";
+      ctx.fillRect(-ss(OBS_LEN/2), -ss(215), ss(OBS_LEN), ss(430));
+      ctx.strokeStyle = "#7a1010"; ctx.lineWidth = 2;
+      ctx.strokeRect(-ss(OBS_LEN/2), -ss(215), ss(OBS_LEN), ss(430));
+      ctx.fillStyle = "#fff"; ctx.font = "700 15px 'Noto Sans SC',sans-serif"; ctx.textAlign="center";
+      ctx.fillText(box.hit ? "纸盒（已撞开）" : "红色纸盒", 0, 5);
+      ctx.restore();
+      ctx.fillStyle = cssVar("--ink2"); ctx.font="12px 'Noto Sans SC',sans-serif"; ctx.textAlign="center";
+      ctx.fillText("绿框 = 障碍点前后 30cm 允许出界区", sx(box.x), sy(box.y)+ss(330));
+    }
+    // 标注
+    ctx.fillStyle = cssVar("--ink"); ctx.font = "700 15px 'Noto Sans SC',sans-serif"; ctx.textAlign="center";
+    ctx.fillText("发车区 · 斑马线", sx(st.x)+ss(330), sy(st.y)+5);
+    ctx.fillText("小 S 弯", sx(3980), sy(1080));
+    ctx.fillText("环岛", sx(2780), sy(1820));
+    ctx.fillText("十字", sx(1150), sy(1520));
+    ctx.font = "600 12.5px 'Noto Sans SC',sans-serif"; ctx.fillStyle = cssVar("--ink2");
+    ctx.fillText("交叉点：直行", sx(CROSS_X.x), sy(CROSS_X.y)-ss(290));
+    ctx.fillText("起跑线 / 停车线", sx(st.x)+ss(330), sy(st.y)+ss(48));
+  } else {
+    var y = WORLD_H/2;
+    ctx.fillStyle = cssVar("--track");
+    ctx.fillRect(0, sy(y)-ss(215), cv.width, ss(430));
+    ctx.strokeStyle = cssVar("--wire"); ctx.lineWidth=3; ctx.setLineDash([14,9]);
+    ctx.beginPath(); ctx.moveTo(0,sy(y)); ctx.lineTo(cv.width,sy(y)); ctx.stroke(); ctx.setLineDash([]);
+    var tx = park.targetX;
+    ctx.fillStyle = "rgba(30,158,98,.4)";
+    ctx.fillRect(sx(tx-10), sy(y)-ss(215), Math.max(2,ss(20)), ss(430));
+    ctx.strokeStyle = "#fff";
+    for (var zk2=-2; zk2<=2; zk2++){
+      ctx.lineWidth = Math.max(3, ss(30));
+      ctx.beginPath(); ctx.moveTo(sx(tx+zk2*52), sy(y)-ss(205)); ctx.lineTo(sx(tx+zk2*52), sy(y)+ss(205)); ctx.stroke();
+    }
+    ctx.strokeStyle = cssVar("--bad2"); ctx.lineWidth=5;
+    ctx.beginPath(); ctx.moveTo(sx(tx), sy(y)-ss(225)); ctx.lineTo(sx(tx), sy(y)+ss(225)); ctx.stroke();
+    ctx.fillStyle = cssVar("--ink"); ctx.font="700 16px 'Noto Sans SC',sans-serif"; ctx.textAlign="center";
+    ctx.fillText("斑马线 · 停车线（按车身最前端计）", sx(tx), sy(y)-ss(300));
+    ctx.font="12.5px 'IBM Plex Mono',monospace"; ctx.fillStyle = cssVar("--ink2");
+    [-70,-50,-30,-10,10,30,50,70].forEach(function(mm){
+      ctx.beginPath(); ctx.strokeStyle=cssVar("--ink2"); ctx.lineWidth=1.5;
+      ctx.moveTo(sx(tx+mm), sy(y)+ss(215)); ctx.lineTo(sx(tx+mm), sy(y)+ss(255)); ctx.stroke();
+      ctx.fillText((mm>0?"+":"")+mm, sx(tx+mm), sy(y)+ss(300));
+    });
+    ctx.fillText("刻度 = 距停车线 mm", sx(tx), sy(y)+ss(360));
+    ctx.strokeStyle = cssVar("--ink2"); ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(sx(park.x0), sy(y)-ss(215)); ctx.lineTo(sx(park.x0), sy(y)+ss(215)); ctx.stroke();
+    if (park.done && park.errMm!==null){
+      ctx.fillStyle = cssVar("--accent"); ctx.font="700 17px 'IBM Plex Mono',monospace";
+      ctx.fillText("误差 "+park.errMm+" mm · 罚时 +"+park.penalty+" s", sx((park.x0+tx)/2), sy(y)-ss(330));
+    }
+  }
+  drawCar();
+}
+function drawCar(){
+  ctx.save();
+  ctx.translate(sx(car.x), sy(car.y));
+  ctx.rotate(car.th);
+  var L=ss(CAR.len), Wd=ss(CAR.wid);
+  ctx.fillStyle = "#1971c2";
+  roundRect(-L/2,-Wd/2,L,Wd,ss(26)); ctx.fill();
+  ctx.fillStyle = "rgba(255,255,255,.85)";
+  roundRect(-L*0.08,-Wd*0.30,L*0.30,Wd*0.60,ss(10)); ctx.fill();
+  ctx.fillStyle = "#14181c";
+  [[-L*0.32,-Wd/2-4],[L*0.32,-Wd/2-4],[-L*0.32,Wd/2-5],[L*0.32,Wd/2-5]].forEach(function(w){
+    ctx.fillRect(w[0]-ss(28), w[1], ss(56), 9);
+  });
+  var fx = ss(CAR.sensorFwd);
+  ctx.strokeStyle = "#14181c"; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.moveTo(L*0.28,0); ctx.lineTo(fx,0); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(fx,-ss(CAR.sensorGap)); ctx.lineTo(fx,ss(CAR.sensorGap)); ctx.stroke();
+  for (var k=-1;k<=1;k++){
+    var v = car.sens[k+1];
+    ctx.beginPath();
+    ctx.fillStyle = v>1.2 ? "#3ddc84" : (v>0.35 ? "#ffd43b" : "#59636c");
+    ctx.arc(fx, ss(k*CAR.sensorGap), ss(17), 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle="#14181c"; ctx.lineWidth=2; ctx.stroke();
+  }
+  ctx.restore();
+  ctx.fillStyle = cssVar("--ink2"); ctx.font="12px 'IBM Plex Mono',monospace"; ctx.textAlign="left";
+  ctx.fillText("L "+Math.round(car.pwmL)+"% · R "+Math.round(car.pwmR)+"%", sx(car.x)-30, sy(car.y)-ss(150));
+}
+function roundRect(x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
+}
+
+/* ---------- 遥测 ---------- */
+var HIST = [], HIST_MAX = 600;
+var histTimer = 0;
+function pushHist(dt){
+  histTimer += dt;
+  if (histTimer < 0.05) return;
+  histTimer = 0;
+  HIST.push({ err: car.err, pl: car.pwmL, pr: car.pwmR, spd: car.speed||0, volt: batt.v });
+  if (HIST.length > HIST_MAX) HIST.shift();
+}
+function drawChart(cvId, series, ymin, ymax, fmt){
+  var c = document.getElementById(cvId), g = c.getContext("2d");
+  var W=c.width, H=c.height;
+  g.clearRect(0,0,W,H);
+  g.strokeStyle = cssVar("--line"); g.lineWidth=1;
+  g.beginPath();
+  for (var i=1;i<4;i++){ g.moveTo(0,H*i/4); g.lineTo(W,H*i/4); }
+  if (ymin<0 && ymax>0){ var yz=H-(0-ymin)/(ymax-ymin)*H; g.moveTo(0,yz); g.lineTo(W,yz); }
+  g.stroke();
+  g.fillStyle = cssVar("--ink2"); g.font="10px 'IBM Plex Mono',monospace"; g.textAlign="left";
+  g.fillText(fmt(ymax), 3, 11); g.fillText(fmt(ymin), 3, H-3);
+  series.forEach(function(s){
+    g.strokeStyle = s.color; g.lineWidth = 1.6; g.beginPath();
+    var started=false;
+    for (var j=0;j<HIST.length;j++){
+      var x = j/(HIST_MAX-1)*W;
+      var y = H - (s.get(HIST[j])-ymin)/(ymax-ymin)*H;
+      y = Math.max(1, Math.min(H-1, y));
+      if (!started){ g.moveTo(x,y); started=true; } else g.lineTo(x,y);
+    }
+    g.stroke();
+  });
+}
+function drawTele(){
+  drawChart("chErr", [{get:function(h){return h.err;}, color:cssVar("--chart-err")}], -1, 1, function(v){return v.toFixed(1);});
+  drawChart("chPwm", [
+    {get:function(h){return h.pl;}, color:cssVar("--chart-l")},
+    {get:function(h){return h.pr;}, color:cssVar("--chart-r")}
+  ], 0, 100, function(v){return v.toFixed(0)+"%";});
+  drawChart("chSpd", [{get:function(h){return h.spd;}, color:cssVar("--chart-v")}], 0, 1.6, function(v){return v.toFixed(1);});
+  drawChart("chVolt", [{get:function(h){return h.volt;}, color:cssVar("--chart-batt")}], 9.4, 12.8, function(v){return v.toFixed(1);});
+}
+
+/* ---------- HUD 同步 ---------- */
+var el = function(id){ return document.getElementById(id); };
+function fmt2(n){ return n.toFixed(2); }
+function syncHUD(){
+  el("stLapTime").textContent = mode==="race" ? fmt2(race.t) : fmt2(park.t);
+  el("stLap").textContent = mode==="park" ? "—" : Math.max(0, Math.min(100, Math.round(car.prog/TRACK_LEN*100)));
+  el("stBest").textContent = baseScore();
+  el("stSpeed").textContent = fmt2(car.speed||0);
+  el("stVolt").textContent = fmt2(batt.v);
+  el("stState").textContent =
+    mode==="park" ? (park.done?"已停稳":park.braking?"刹车中…":park.running?"冲刺中":"停车待测") :
+    race.done ? (race.parkErr!==null?"已停车完赛":"已失败") : race.running ? (race.braking?"终点刹车中…":race.brakePhase?"⚠ 已回发车区，快刹车！":car.sum<P.thr?"⚠ 丢线找线中":"循线中") : "待发车";
+  el("stSpeedCard").classList.toggle("alert", (car.sum<P.thr) && race.running);
+  el("sL").textContent = fmt2(car.sens[0]); el("sM").textContent = fmt2(car.sens[1]); el("sR").textContent = fmt2(car.sens[2]);
+  el("aL").textContent = Math.round(car.sens[0]/3.3*4095);
+  el("aM").textContent = Math.round(car.sens[1]/3.3*4095);
+  el("aR").textContent = Math.round(car.sens[2]/3.3*4095);
+  el("bL").style.width = (car.sens[0]/3.3*100)+"%";
+  el("bM").style.width = (car.sens[1]/3.3*100)+"%";
+  el("bR").style.width = (car.sens[2]/3.3*100)+"%";
+  el("errVal").textContent = car.err.toFixed(3);
+  el("sumVal").textContent = fmt2(car.sum);
+  el("pwmL").textContent = Math.round(car.pwmL); el("pwmR").textContent = Math.round(car.pwmR);
+  el("capErr").textContent = car.err.toFixed(3);
+  el("capPwmL").textContent = Math.round(car.pwmL); el("capPwmR").textContent = Math.round(car.pwmR);
+  el("capSpd").textContent = fmt2(car.speed||0)+" m/s";
+  el("capVolt").textContent = fmt2(batt.v)+" V";
+  el("battV").textContent = fmt2(batt.v);
+  el("battI").textContent = batt.i.toFixed(1);
+  el("battVoc").textContent = fmt2(batt.voc);
+  el("battSoc").textContent = Math.round(batt.soc*100);
+  var fill = el("battFill");
+  fill.style.width = (batt.soc*100)+"%";
+  fill.classList.toggle("low", batt.soc<0.3 || batt.v<10.2);
+  var sc = race.scores;
+  el("scS").textContent = sc.s===null ? "—" : sc.s;
+  el("scCross").textContent = sc.cross===null ? "—" : sc.cross;
+  el("scRound").textContent = sc.round===null ? "—" : sc.round;
+  el("scFull").textContent = sc.full===null ? "—" : sc.full;
+  el("scBase").textContent = baseScore();
+  el("scObs").textContent = !obstacleOn ? "未启用" : (race.obsPassed ? "已通过 · +10 待确认" : (box.hit ? "已撞开 · 待确认" : "— / 10"));
+  el("scTotal").textContent = baseScore();
+}
+function syncButtons(){
+  var running = (mode==="race" && race.running) || (mode==="park" && park.running);
+  el("btnStart").textContent = running ? "运行中…" : (mode==="race" ? "▶ 发车（一圈）" : "▶ 开始停车练习");
+  el("btnStart").disabled = running;
+  el("btnPause").disabled = !running;
+  el("btnPause").textContent = paused ? "继续" : "暂停";
+  el("btnBrake").style.display = ((mode==="park" && park.running && !park.braking) || (mode==="race" && race.running && race.brakePhase && !race.braking)) ? "" : "none";
+  el("brakeCtl").style.display = "";
+  el("brakeLeadCtl").style.display = mode==="race" ? "" : "none";
+  el("modeRace").classList.toggle("on", mode==="race");
+  el("modePark").classList.toggle("on", mode==="park");
+}
+
+/* ---------- 模式与按钮 ---------- */
+function switchMode(m, auto){
+  mode = m; paused = false;
+  if (m==="race"){ resetCar(true); resetRace(); }
+  else { resetCar(false); resetPark(); senseIntoCar(); }
+  HIST.length = 0;
+  if (!auto) showBanner(m==="race" ? "正式赛道一圈：斑马线发车 → S 弯 → 环岛 → 十字 → 回发车区斑马线停车（按车身最前端计）。障碍可在上方开关申报添加。" : "停车练习：小车加速冲向斑马线，看准时机刹车，目标是车身最前端停在停车线 ±10mm 内（电磁杆不计）。", "ok");
+  syncButtons();
+}
+function senseIntoCar(){ var s = (mode==="park") ? sensePark() : sense(); car.sens=s; car.sum=s[0]+s[1]+s[2]; if (car.sum>=P.thr) car.err=(s[2]-s[0])/car.sum; }
+el("modeRace").addEventListener("click", function(){ switchMode("race"); });
+el("modePark").addEventListener("click", function(){ switchMode("park"); });
+el("btnStart").addEventListener("click", function(){
+  if (mode==="race") startRace();
+  else { resetCar(false); resetPark(); park.running = true; showBanner("已发车！车头接近停车线时按【刹车】——别等压线，刹车有滑行距离。","ok"); syncButtons(); }
+});
+el("btnPause").addEventListener("click", function(){ paused = !paused; syncButtons(); });
+el("btnReset").addEventListener("click", function(){ switchMode(mode); });
+el("btnBrake").addEventListener("click", doBrake);
+function doBrake(){
+  if (mode==="park" && park.running && !park.braking){ park.braking = true; syncButtons(); }
+  else if (mode==="race" && race.running && race.brakePhase && !race.braking){ race.braking = true; syncButtons(); }
+}
+el("btnObs").addEventListener("click", function(){
+  obstacleOn = !obstacleOn;
+  this.textContent = obstacleOn ? "障碍：开（已申报）" : "障碍：关";
+  this.setAttribute("aria-pressed", obstacleOn ? "true" : "false");
+  this.classList.toggle("primary", obstacleOn);
+  switchMode("race");
+  showBanner(obstacleOn ? "已申报添加障碍：底边长直道上出现红色纸盒（与赛道等宽），其前后 30cm 内允许出赛道绕行或撞开通过。" : "不添加障碍：整个赛道不放纸盒，运行中出赛道判失败。", "ok");
+});
+document.querySelectorAll(".spd").forEach(function(b){
+  b.addEventListener("click", function(){
+    simSpeed = +b.dataset.speed;
+    document.querySelectorAll(".spd").forEach(function(x){ x.classList.toggle("on", x===b); });
+  });
+});
+document.addEventListener("keydown", function(e){
+  if (e.code==="Space" && !/INPUT|TEXTAREA/.test(document.activeElement.tagName)){
+    e.preventDefault();
+    if (mode==="park" && park.running && !park.braking) doBrake();
+    else if (mode==="race" && race.running && race.brakePhase && !race.braking) doBrake();
+    else if (mode==="race" && !race.running) el("btnStart").click();
+    else if (mode==="park" && !park.running && !park.done) el("btnStart").click();
+  }
+});
+
+/* ---------- 参数绑定 ---------- */
+function bindParam(id, out, key, fmt, onchange){
+  var s = el(id), o = el(out);
+  function upd(){ P[key] = parseFloat(s.value); o.textContent = fmt(P[key]); if (onchange) onchange(); }
+  s.addEventListener("input", upd); upd();
+  return { set: function(v){ s.value = v; upd(); } };
+}
+var binders = {
+  base:  bindParam("pBase","oBase","base", function(v){return v+" %";}, updateCode),
+  gain:  bindParam("pGain","oGain","gain", function(v){return v;}, updateCode),
+  thr:   bindParam("pThr","oThr","thr", function(v){return v.toFixed(2)+" V";}, updateCode),
+  bal:   bindParam("pBal","oBal","bal", function(v){return v+" %";}, updateCode),
+  sgain: bindParam("pSGain","oSGain","sgain", function(v){return v.toFixed(2)+" ×";}),
+  noise: bindParam("pNoise","oNoise","noise", function(v){return v.toFixed(2)+" V";}),
+  brake: bindParam("pBrake","oBrake","brake", function(v){return v.toFixed(1)+" m/s²";}, updateCode),
+  brakeLead: bindParam("pBrakeLead","oBrakeLead","brakeLead", function(v){return v+" mm";}, updateCode)
+};
+function applyParams(q){
+  ["base","gain","thr","bal","sgain","noise","brake","brakeLead"].forEach(function(k){
+    if (q[k]!==undefined) binders[k].set(q[k]);
+  });
+  updateCode();
+}
+
+/* ---------- 预设 ---------- */
+var userPresets = [];
+var PRESETS = [
+  { name:"满分预设", obs:true, note:"模拟器探针实测的一组：障碍开启时基础分 80/80、障碍通过、停车误差 +9mm（罚时 0）；障碍附加 10 分是否计入仍按原文口径待裁判确认。注意：这组参数只是在模拟器里跑出来的，实车不能直接照搬——实车的电磁杆读数、轮胎摩擦、电池状态和现场场地都与模拟不同，实车必须按真实传感器数据和现场场地重新调。", p:{base:36, gain:60, thr:0.5, bal:0, sgain:1.0, noise:0.03, brake:4.5, brakeLead:20} },
+  { name:"稳妥巡线（新手）", p:{base:42, gain:48, thr:0.9, bal:0, sgain:1.0, noise:0.03, brake:2.6} },
+  { name:"均衡（推荐起点）", p:{base:55, gain:62, thr:0.9, bal:0, sgain:1.0, noise:0.03, brake:2.6} },
+  { name:"激进冲圈", p:{base:74, gain:88, thr:0.8, bal:0, sgain:1.1, noise:0.03, brake:3.2} }
+];
+function renderPresets(){
+  var list = el("presetList"); list.innerHTML = "";
+  PRESETS.concat(userPresets).forEach(function(pr, idx){
+    var row = document.createElement("div"); row.className="preset";
+    var nm = document.createElement("span"); nm.className="nm"; nm.textContent = pr.name;
+    var use = document.createElement("button"); use.textContent="载入";
+    use.addEventListener("click", function(){
+      applyParams(pr.p);
+      if (pr.obs===true && !obstacleOn) el("btnObs").click();
+      if (pr.obs===false && obstacleOn) el("btnObs").click();
+      showBanner("已载入预设「"+pr.name+"」"+(pr.obs===true?"（已自动申报添加障碍，终点自动刹车已开）":"")+"，发车即可验证。","ok");
+    });
+    row.appendChild(nm); row.appendChild(use);
+    if (idx>=PRESETS.length){
+      var del = document.createElement("button"); del.textContent="删除"; del.className="del";
+      del.addEventListener("click", function(){ userPresets.splice(idx-PRESETS.length,1); renderPresets(); });
+      row.appendChild(del);
+    }
+    list.appendChild(row);
+    if (pr.note){
+      var nt = document.createElement("p"); nt.className="foot"; nt.style.margin="0 2px 4px"; nt.textContent = pr.note;
+      list.appendChild(nt);
+    }
+  });
+}
+el("btnSavePreset").addEventListener("click", function(){
+  var name = el("presetName").value.trim() || ("我的参数 "+(userPresets.length+1));
+  userPresets.push({ name:name, p:Object.assign({}, P) });
+  el("presetName").value = "";
+  renderPresets();
+  showBanner("已存档「"+name+"」（本次打开页面期间有效，可导出 JSON 备份）。","ok");
+});
+el("btnExport").addEventListener("click", function(){
+  var blob = new Blob([JSON.stringify({name:"风磁电车调车参数", params:P, presets:userPresets}, null, 2)], {type:"application/json"});
+  var a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = "car-params.json"; a.click();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); }, 2000);
+});
+renderPresets();
+
+/* ---------- C 代码 ---------- */
+function genCode(){
+  return ""+
+"/* 风磁电车 V1.4 · 由调车模拟器导出（参数与模拟器一一对应的部分）\n"+
+" * 电磁杆: 左 PA0 / 中 PA1 / 右 PA2 (ADC1_IN0/1/2)\n"+
+" * 电机PWM: 左 PB6 (TIM4_CH1) / 右 PB7 (TIM4_CH2) -> L298N ENA/ENB\n"+
+" * 方向: IN1..IN4 = PB0/PB1/PB10/PB11（烧录前按实车接线再核对一遍） */\n"+
+"#define BASE_PWM     "+Math.round(P.base)+"      // 基础速度 %\n"+
+"#define KP_DIFF      "+Math.round(P.gain)+"      // 差速增益\n"+
+"#define LOST_SUM_V   "+P.thr.toFixed(2)+"f   // 丢线阈值: 三路电压和(V)\n"+
+"#define MOTOR_BAL    "+P.bal.toFixed(1)+"f    // 电机平衡 %\n"+
+"#define BRAKE_DECEL  "+P.brake.toFixed(1)+"f    // 停车刹车减速度 m/s^2\n"+
+"#define BRAKE_LEAD_MM "+Math.round(P.brakeLead)+"     // 终点自动刹车提前量 mm（车头距停车线，0=关）\n\n"+
+"float Sensor_Error(float vL, float vM, float vR)\n"+
+"{\n"+
+"    float sum = vL + vM + vR;\n"+
+"    if (sum < LOST_SUM_V) return last_error;   // 丢线: 保持方向找线\n"+
+"    last_error = (vR - vL) / sum;              // -1(左) ~ +1(右)\n"+
+"    return last_error;\n"+
+"}\n"+
+"// pwmL = BASE_PWM + KP_DIFF*err + MOTOR_BAL\n"+
+"// pwmR = BASE_PWM - KP_DIFF*err - MOTOR_BAL   (再限幅 0..100)";
+}
+function updateCode(){ el("codeOut").textContent = genCode(); }
+el("btnCopyCode").addEventListener("click", function(){
+  var t = genCode();
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(t).then(function(){ showBanner("C 参数代码已复制，去 Keil 里粘贴使用。","ok"); },
+      function(){ showBanner("复制被浏览器拦了，展开下方代码框手动全选复制。","warn"); });
+  } else showBanner("展开下方代码框手动复制。","warn");
+});
+updateCode();
+
+/* ---------- 主循环 ---------- */
+var lastTs = null, teleAcc = 0;
+function frame(ts){
+  requestAnimationFrame(frame);
+  if (lastTs===null) lastTs = ts;
+  var dtReal = Math.min(0.05, (ts-lastTs)/1000); lastTs = ts;
+  if (!paused){
+    var steps = Math.round(dtReal*240);
+    var sdt = 1/240;
+    for (var i=0;i<steps*simSpeed;i++) physStep(sdt);
+    pushHist(dtReal*simSpeed);
+  }
+  drawStage();
+  teleAcc += dtReal;
+  if (teleAcc > 0.12){ teleAcc = 0; drawTele(); }
+  syncHUD();
+}
+switchMode("race");
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
